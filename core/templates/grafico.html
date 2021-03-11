@@ -1,0 +1,1537 @@
+
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>SARDIM - South America River Discharge Monitor</title>
+    <style>
+        html,
+        body,
+        #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+
+        div.d-flex flex-column flex-md-row align-items-center p-3 px-md-4 mb-3 bg-white border-bottom shadow-sm {
+            margin: 0;
+            padding: 0;
+        }
+
+        #topbar {
+            background: #fff;
+            padding: 10px;
+        }
+
+        .action-button {
+            font-size: 16px;
+            background-color: transparent;
+            border: 1px solid #d3d3d3;
+            color: #6e6e6e;
+            height: 32px;
+            width: 32px;
+            text-align: center;
+            box-shadow: 0 0 1px rgba(0, 0, 0, 0.3);
+        }
+
+        .action-button:hover,
+        .action-button:focus {
+            background: #e9e9e9;
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .active {
+            background: #e9e9e9;
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+    </style>
+
+    <!-- JQuery -->
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+
+    
+
+    <!-- Referência a pasta de estilo CSS e ao ArcGIS API JavaScript -->
+
+    <link rel="stylesheet" href="https://js.arcgis.com/4.15/esri/themes/light/main.css">
+    <script src="https://js.arcgis.com/4.15/"></script>
+
+    <!-- Bootstrap CSS -->
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+
+    <!-- Favicon Icon -->
+
+    <link rel="shortcut icon" href="https://img.icons8.com/offices/100/000000/america.png"/>
+
+    <script>
+
+// ***********************************************************************************************************************************************
+
+    require([
+
+        // Carregar módulos utilizados no script...
+
+        "esri/Map",
+        "esri/views/MapView",
+        "esri/widgets/BasemapGallery",
+        "esri/widgets/Expand",
+        "esri/layers/FeatureLayer",
+        "esri/renderers/ClassBreaksRenderer",
+        "esri/widgets/ScaleBar",
+        "esri/widgets/Search",
+        "esri/widgets/Fullscreen",
+        "esri/widgets/Home",
+        "esri/widgets/Legend",
+        "esri/widgets/BasemapToggle",
+        "esri/Basemap",
+        "esri/layers/VectorTileLayer",
+        "esri/layers/TileLayer",
+        "esri/widgets/LayerList",
+        "esri/widgets/DistanceMeasurement2D",
+        "esri/widgets/AreaMeasurement2D",
+        "esri/layers/GroupLayer",
+
+
+    ], function (Map, MapView, BasemapGallery, Expand, FeatureLayer, ClassBreaksRenderer, ScaleBar, Search, Fullscreen, Home, Legend, BasemapToggle, Basemap, VectorTileLayer, TileLayer, LayerList, DistanceMeasurement2D, AreaMeasurement2D, GroupLayer) {
+
+// ***********************************************************************************************************************************************
+
+        // Criando um mapa 2D...
+
+        var basemap = new Basemap({
+            baseLayers: [
+                new TileLayer({
+                    portalItem: {
+                        id: "1b243539f4514b6ba35e7d995890db1d" // World Hillshade
+                    }
+                }),
+                new VectorTileLayer({
+                    portalItem: {
+                        id: "43440a7b7d0244f886dab92defd656a4"
+                    }
+                })
+            ]
+        });
+
+        var map = new Map({
+            basemap: basemap
+        });
+
+        var view = new MapView({
+            container: "viewDiv",
+            map: map,
+            center: [-56.1022, -13.0162],   // Longitude, Latitude
+            zoom: 5,   // Zoom x (1, 2, 3, ...)
+            popup: {
+                dockEnabled: true,
+                dockOptions: {
+                    breakpoint: false,
+                    position: "bottom-right"
+                }
+            },
+            maxScale: 36978596
+        });
+
+// ***********************************************************************************************************************************************
+
+        // Ferramenta para visualizar a tela em full-screen
+
+        fullscreen = new Fullscreen({
+            view: view
+        });
+
+        view.ui.add(fullscreen, "top-left");
+
+// ***********************************************************************************************************************************************
+
+        // Ferramenta de botão home para voltar ao marcador inicial do mapa...
+
+        view.ui.add(
+            new Home({
+                view: view
+            }),
+            "top-left"
+        );
+
+// ***********************************************************************************************************************************************
+
+        // Ferramenta de lista de layers disponíveis no mapa..
+
+        var layerList = new LayerList({
+            view: view,
+            listItemCreatedFunction: function(event){
+                const item = event.item;
+                item.panel = {
+                    content: "legend"
+                };
+                //item.visible = false;
+            }
+        });
+
+        const layerListExpand = new Expand({
+            expandIconClass: "esri-icon-layers",
+            expandTooltip: "Lista de camadas",
+            view: view,
+            content: layerList,
+            expanded: false,
+        });
+
+        view.ui.add(layerListExpand, "top-left");
+
+
+// ***********************************************************************************************************************************************
+
+        // Ferramenta de galeria de mapas de fundo
+
+        var basemapToggle = new BasemapToggle({
+            view: view,
+            nextBasemap: "satellite",
+            references: "false"
+        });
+
+        // Ferramenta de expansão/recolhimento para visualizar a galeria de mapas de fundo
+
+        var bgExpand = new Expand({
+            view: view,
+            content: basemapToggle,
+            expandIconClass: "esri-icon-collection",
+            expandTooltip: "Imagem de satélite",
+        });
+
+        // Adiciona a ferramenta de expansão da galeria de mapas de fundo no canto esquerdo superior
+
+        view.ui.add(bgExpand, "top-left");
+
+// ***********************************************************************************************************************************************
+
+        // Renderer com ClassBreaksRenderer definido para formatar o símbolo de cada feature do layer baseado em um valor de um atributo numérico, usando (Qhoje) para mudar as cores de cada trecho de rio segundo o valor da vazão atual
+
+        var riversRenderer = {
+            type: "class-breaks",
+            field: "AreaM_km2",
+            classBreakInfos: [
+            {
+                minValue: 1000,
+                maxValue: 5000,
+                label: "1000 a 5000",
+                symbol: {
+                    color: "#4292c6",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: 5000.01,
+                maxValue: 10000,
+                label: "5000 a 10000",
+                symbol: {
+                    color: "#2171b5",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: 10000.01,
+                maxValue: 50000,
+                label: "10000 a 50000",
+                symbol: {
+                    color: "#08519c",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: 50000.01,
+                maxValue: 10000000,
+                label: "> 50000",
+                symbol: {
+                    color: "#08306b",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }
+            ]
+        };
+
+
+// ***********************************************************************************************************************************************
+
+        // Renderer com ClassBreaksRenderer definido para formatar o símbolo de cada feature do layer baseado em um valor de um atributo numérico, usando (PERM0) para mudar as cores de cada trecho de rio segundo o valor da taxa de permanência da vazão atual
+
+        var permanenciaRenderer = {
+            type: "class-breaks",
+            field: "Permanencia",
+            classBreakInfos: [
+            {
+                minValue: -0.02,
+                maxValue: -0.01,
+                label: "Cheia (-)",
+                symbol: {
+                    color: "#ffffff",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 0,
+                maxValue: 5.01,
+                label: "<5% (Intensa)",
+                symbol: {
+                    color: "#00008B",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 5.01,
+                maxValue: 10,
+                label: "5% a 10% (Intensa)",
+                symbol: {
+                    color: "#4169E1",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: 10.01,
+                maxValue: 20,
+                label: "10% a 20% (Moderada)",
+                symbol: {
+                    color: "#6495ED",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: 20.01,
+                maxValue: 35,
+                label: "20% a 35% (Moderada)",
+                symbol: {
+                    color: "#6baed6",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: 35.01,
+                maxValue: 65,
+                label: "35% a 65% (Leve)",
+                symbol: {
+                    color: "rgb(180,180,180)",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 65.01,
+                maxValue: 80,
+                label: "65% a 80% (Moderada)",
+                symbol: {
+                    color: "#FFA07A",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 80.01,
+                maxValue: 90,
+                label: "80% a 90% (Moderada)",
+                symbol: {
+                    color: "#FF0000",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },{
+                minValue: 90.01,
+                maxValue: 95,
+                label: "90% a 95% (Intensa)",
+                symbol: {
+                    color: "#B22222",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },{
+                minValue: 95.01,
+                maxValue: 99.99,
+                label: "> 95% (Intensa)",
+                symbol: {
+                    color: "#8B0000",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },{
+                minValue: 100.01,
+                maxValue: 100.02,
+                label: "Estiagem (+)",
+                symbol: {
+                    color: "#ffffff",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }
+            ]
+        };
+
+// ***********************************************************************************************************************************************
+
+        // Renderer com ClassBreaksRenderer definido para formatar o símbolo de cada feature do layer baseado em um valor de um atributo numérico, usando (Permanencia_30) para mudar as cores de cada trecho de rio segundo o valor da taxa de permanência máxima ou mínima do mês
+
+        var permanencia30Renderer = {
+            type: "class-breaks",
+            field: "Permanencia_30",
+            classBreakInfos: [
+            {
+                minValue: -0.02,
+                maxValue: -0.01,
+                label: "Cheia (-)",
+                symbol: {
+                    color: "#ffffff",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 0,
+                maxValue: 5.01,
+                label: "<5% (Intensa)",
+                symbol: {
+                    color: "#00008B",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 5.01,
+                maxValue: 10,
+                label: "5% a 10% (Intensa)",
+                symbol: {
+                    color: "#4169E1",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: 10.01,
+                maxValue: 20,
+                label: "10% a 20% (Moderada)",
+                symbol: {
+                    color: "#6495ED",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: 20.01,
+                maxValue: 35,
+                label: "20% a 35% (Moderada)",
+                symbol: {
+                    color: "#6baed6",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: 35.01,
+                maxValue: 65,
+                label: "35% a 65% (Leve)",
+                symbol: {
+                    color: "rgb(180,180,180)",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 65.01,
+                maxValue: 80,
+                label: "65% a 80% (Moderada)",
+                symbol: {
+                    color: "#FFA07A",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 80.01,
+                maxValue: 90,
+                label: "80% a 90% (Moderada)",
+                symbol: {
+                    color: "#FF0000",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },{
+                minValue: 90.01,
+                maxValue: 95,
+                label: "90% a 95% (Intensa)",
+                symbol: {
+                    color: "#B22222",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },{
+                minValue: 95.01,
+                maxValue: 99.99,
+                label: "> 95% (Intensa)",
+                symbol: {
+                    color: "#8B0000",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },{
+                minValue: 100.01,
+                maxValue: 100.02,
+                label: "Estiagem (+)",
+                symbol: {
+                    color: "#ffffff",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }
+            ]
+        };
+
+// ***********************************************************************************************************************************************
+
+        // Renderer com ClassBreaksRenderer definido para formatar o símbolo de cada feature do layer baseado em um valor de um atributo numérico, usando (Tr) para mudar as cores de cada trecho de rio segundo o valor do tempo de retorno da vazão atual
+
+        var tempoRenderer = {
+            type: "class-breaks",
+            field: "Tr",
+            classBreakInfos: [
+            {
+                minValue: -100000000,
+                maxValue: -99999999,
+                label: "Estiagem (-)",
+                symbol: {
+                    color: "#ffffff",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: -9999999999999999999999999999999999999999,
+                maxValue: -20,
+                label: "< -20 (Intensa)",
+                symbol: {
+                    color: "#8B0000",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: -19.99999,
+                maxValue: -10,
+                label: "< -10 (Intensa)",
+                symbol: {
+                    color: "#B22222",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: -9.99999,
+                maxValue: -5,
+                label: "-5 a -10 (Moderada)",
+                symbol: {
+                    color: "#FF0000",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: -4.99999,
+                maxValue: -2,
+                label: "-2 a -5 (Moderada)",
+                symbol: {
+                    color: "#FF6347",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: -1.99999,
+                maxValue: -1.00001,
+                label: "-1 a -2 (Leve)",
+                symbol: {
+                    color: "#FFA07A",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: -1,
+                maxValue: 1,
+                label: "-1 a +1 (Leve)",
+                symbol: {
+                    color: "rgb(180,180,180)",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 1.00001,
+                maxValue: 1.99999,
+                label: "1 a 2 (Leve)",
+                symbol: {
+                    color: "#87CEFA",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 2,
+                maxValue: 4.99999,
+                label: "2 a 5 (Moderada)",
+                symbol: {
+                    color: "#6495ED",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },{
+                minValue: 5,
+                maxValue: 9.99999,
+                label: "5 a 10 (Moderada)",
+                symbol: {
+                    color: "#0000FF",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },{
+                minValue: 10,
+                maxValue: 19.99999,
+                label: "10 a 20 (Intensa)",
+                symbol: {
+                    color: "#0000CD",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            ,{
+                minValue: 20,
+                maxValue: 999998,
+                label: "> 20 (Intensa)",
+                symbol: {
+                    color: "#000080",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 999998,
+                maxValue: 999998.01,
+                label: "Cheia (+)",
+                symbol: {
+                    color: "#ffffff",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 999999,
+                maxValue: 999999.01,
+                label: "Indeterminado",
+                symbol: {
+                    color: "#3CB371",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }
+            ]
+        };
+
+// ***********************************************************************************************************************************************
+
+        // Renderer com ClassBreaksRenderer definido para formatar o símbolo de cada feature do layer baseado em um valor de um atributo numérico, usando (Tr_30) para mudar as cores de cada trecho de rio segundo o valor do tempo de retorno máximo ou mínimo do mês
+
+        var tempo30Renderer = {
+            type: "class-breaks",
+            field: "Tr_30",
+            classBreakInfos: [
+            {
+                minValue: -100000000,
+                maxValue: -99999999,
+                label: "Estiagem (-)",
+                symbol: {
+                    color: "#ffffff",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: -9999999999999999999999999999999999999999,
+                maxValue: -20,
+                label: "< -20 (Intensa)",
+                symbol: {
+                    color: "#8B0000",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: -19.99999,
+                maxValue: -10,
+                label: "< -10 (Intensa)",
+                symbol: {
+                    color: "#B22222",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: -9.99999,
+                maxValue: -5,
+                label: "-5 a -10 (Moderada)",
+                symbol: {
+                    color: "#FF0000",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: -4.99999,
+                maxValue: -2,
+                label: "-2 a -5 (Moderada)",
+                symbol: {
+                    color: "#FF6347",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: -1.99999,
+                maxValue: -1.00001,
+                label: "-1 a -2 (Leve)",
+                symbol: {
+                    color: "#FFA07A",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }, {
+                minValue: -1,
+                maxValue: 1,
+                label: "-1 a +1 (Leve)",
+                symbol: {
+                    color: "rgb(180,180,180)",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 1.00001,
+                maxValue: 1.99999,
+                label: "1 a 2 (Leve)",
+                symbol: {
+                    color: "#87CEFA",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 2,
+                maxValue: 4.99999,
+                label: "2 a 5 (Moderada)",
+                symbol: {
+                    color: "#6495ED",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },{
+                minValue: 5,
+                maxValue: 9.99999,
+                label: "5 a 10 (Moderada)",
+                symbol: {
+                    color: "#0000FF",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },{
+                minValue: 10,
+                maxValue: 19.99999,
+                label: "10 a 20 (Intensa)",
+                symbol: {
+                    color: "#0000CD",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            ,{
+                minValue: 20,
+                maxValue: 999998,
+                label: "> 20 (Intensa)",
+                symbol: {
+                    color: "#000080",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 999998,
+                maxValue: 999998.01,
+                label: "Cheia (+)",
+                symbol: {
+                    color: "#ffffff",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            },
+            {
+                minValue: 999999,
+                maxValue: 999999.01,
+                label: "Indeterminado",
+                symbol: {
+                    color: "#3CB371",
+                    type: "simple-line",
+                    style: "solid"
+                }
+            }
+            ]
+        };
+
+// ***********************************************************************************************************************************************
+
+        // Renderer com visualVariables para mudar a espessura das linhas dos rios de acordo com a área de drenagem acumulada a montante (AreaM_km2)
+
+        const sizeVisualVariable1 = {
+            type: "size",
+            field: "Qhoje",
+            minDataValue: 0,
+            maxDataValue: 5000,
+            minSize: 1,
+            maxSize: 3,
+        };
+            permanenciaRenderer.visualVariables = [ sizeVisualVariable1 ];
+
+// ***********************************************************************************************************************************************
+
+        // Renderer com visualVariables para mudar a espessura das linhas dos rios de acordo com a área de drenagem acumulada a montante (AreaM_km2)
+
+        const sizeVisualVariable2 = {
+            type: "size",
+            field: "Qhoje",
+            minDataValue: 0,
+            maxDataValue: 5000,
+            minSize: 1,
+            maxSize: 3,
+        };
+            tempoRenderer.visualVariables = [ sizeVisualVariable2 ];
+
+// ***********************************************************************************************************************************************
+
+        // Renderer com visualVariables para mudar a espessura das linhas dos rios de acordo com a área de drenagem acumulada a montante (AreaM_km2)
+
+        const sizeVisualVariable3 = {
+            type: "size",
+            field: "Qhoje",
+            minDataValue: 0,
+            maxDataValue: 5000,
+            minSize: 1,
+            maxSize: 3,
+        };
+            riversRenderer.visualVariables = [ sizeVisualVariable3 ];
+
+// ***********************************************************************************************************************************************
+
+        // Renderer com visualVariables para mudar a espessura das linhas dos rios de acordo com a área de drenagem acumulada a montante (AreaM_km2)
+
+        const sizeVisualVariable4 = {
+            type: "size",
+            field: "Qhoje",
+            minDataValue: 0,
+            maxDataValue: 5000,
+            minSize: 1,
+            maxSize: 3,
+        };
+            permanencia30Renderer.visualVariables = [ sizeVisualVariable4 ];
+
+// ***********************************************************************************************************************************************
+
+        // Renderer com visualVariables para mudar a espessura das linhas dos rios de acordo com a área de drenagem acumulada a montante (AreaM_km2)
+
+        const sizeVisualVariable5 = {
+            type: "size",
+            field: "Qhoje",
+            minDataValue: 0,
+            maxDataValue: 5000,
+            minSize: 1,
+            maxSize: 3,
+        };
+            tempo30Renderer.visualVariables = [ sizeVisualVariable5 ];
+
+
+// ***********************************************************************************************************************************************
+
+        // Definir um estilo de pop-up para o layer dos rios, mostrando as informações em uma tabela...
+
+        var popupRivers = {
+            "title": "<b>SARDIM - South America River Discharge Monitor</b>",
+            "content": [
+                {
+                    "type": "fields",
+                    "fieldInfos": [
+                        {
+                            "fieldName": "AreaM_km2",
+                            "label": "Área de drenagem acumulada (km²)",
+                            "isEditable": true,
+                            "tooltip": "",
+                            "visible": true,
+                            "format": {
+                                "places": 2,
+                                "digitSeparator": true
+                            },
+                            "stringFieldOption": "text-box"
+                        },
+                        {
+                            "fieldName": "Permanencia",
+                            "label": "Permanência atual (%)",
+                            "isEditable": true,
+                            "tooltip": "",
+                            "visible": true,
+                            "format": {
+                                "places": 1,
+                                "digitSeparator": true
+                            },
+                            "stringFieldOption": "text-box"
+                        },
+                        {
+                            "fieldName": "Permanencia_30",
+                            "label": "Permanência máx / mín (%)</br> Último mês",
+                            "isEditable": true,
+                            "tooltip": "",
+                            "visible": true,
+                            "format": {
+                                "places": 1,
+                                "digitSeparator": true
+                            },
+                            "stringFieldOption": "text-box"
+                        },
+                        {
+                            "fieldName": "Tr_Intervalo",
+                            "label": "Tempo de retorno (anos)</br>Atual</br> - Secas + Cheias",
+                            "isEditable": true,
+                            "tooltip": "",
+                            "visible": true,
+                            "stringFieldOption": "text-box"
+                        },
+                        {
+                            "fieldName": "Tr_30_Intervalo",
+                            "label": "Tempo de retorno máx / mín (anos)</br> Último mês</br> - Secas + Cheias",
+                            "isEditable": true,
+                            "tooltip": "",
+                            "visible": true,
+                            "stringFieldOption": "text-box"
+                        },
+                        {
+                            "fieldName": "Mini",
+                            "label": "Minibacia",
+                            "isEditable": true,
+                            "tooltip": "",
+                            "visible": true,
+                            "format": {
+                                "places": 0,
+                                "digitSeparator": false
+                            },
+                            "stringFieldOption": "text-box"
+                        }
+                    ]
+                },
+
+                // Adicionar as informações das vazões e taxas de permanência nos últimos 7 dias por meio de gráficos em colunas...
+
+                {
+                    "type": "media",
+                    "mediaInfos": [
+                        {
+                            type: "column-chart",
+                            title: "<b> <style='text-align: center;'>Vazão média semanal nos últimos 2 meses (m³/s)</style><b>",
+                            caption: "<span style='text-align: center;'><h7>Período: semana 8 (09/04/20) até semana 1 (03/06/20)<h7></span>",
+                            value: {
+                                fields: ["Semana_8","Semana_7", "Semana_6", "Semana_5", "Semana_4", "Semana_3", "Semana_2", "Semana_1"],
+                                normalizeField: null
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+
+// ***********************************************************************************************************************************************
+
+        // Criar uma nova FeatureLayer e configurar a fonte url, renderer e o template de pop-up
+
+        var rivers= new FeatureLayer({
+            url: "https://services9.arcgis.com/S990USlhfgpUmWKm/arcgis/rest/services/rios/FeatureServer",
+            renderer: riversRenderer,
+            outFields: ["AreaM_km2","Semana_1","Semana_2","Semana_3","Semana_4","Semana_5","Semana_6","Semana_7","Semana_8","Mini","Permanencia","Tr","Tr_Intervalo"],
+            popupTemplate: popupRivers,
+            opacity: 1,
+            title: "Rios - Padrão"
+        });
+
+        //map.add(rivers, 2);
+        //rivers.listMode = "hide"
+
+        // Escala mínima de visibilidade do layer 1:18489298 | Zoom 5
+
+        rivers.minScale = 36978596;
+
+
+// ***********************************************************************************************************************************************
+
+        // Criar uma nova FeatureLayer e configurar a fonte url, renderer e o template de pop-up
+
+        var permanencia = new FeatureLayer({
+            url: "https://services9.arcgis.com/S990USlhfgpUmWKm/arcgis/rest/services/rios/FeatureServer",
+            renderer: permanenciaRenderer,
+            outFields: ["AreaM_km2","Semana_1","Semana_2","Semana_3","Semana_4","Semana_5","Semana_6","Semana_7","Semana_8","Mini","Permanencia","Tr","Tr_Intervalo"],
+            popupTemplate: popupRivers,
+            title: "Permanência - Atual"
+        });
+
+        // Escala mínima de visibilidade do layer 1:18489298 | Zoom 5
+
+        permanencia.minScale = 36978596;
+
+
+// ***********************************************************************************************************************************************
+
+
+        // Criar uma nova FeatureLayer e configurar a fonte url, renderer e o template de pop-up
+
+        var tempo = new FeatureLayer({
+            url: "https://services9.arcgis.com/S990USlhfgpUmWKm/arcgis/rest/services/rios/FeatureServer",
+            renderer: tempoRenderer,
+            outFields: ["AreaM_km2","Tr","Semana_1","Semana_2","Semana_3","Semana_4","Semana_5","Semana_6","Semana_7","Semana_8","Mini","Permanencia","Tr_Intervalo"],
+            popupTemplate: popupRivers,
+            title: "Tempo de retorno - Atual"
+        });
+
+        // Escala mínima de visibilidade do layer 1:18489298 | Zoom 5
+
+        tempo.minScale = 36978596;
+
+// ***********************************************************************************************************************************************
+
+
+        // Criar uma nova FeatureLayer e configurar a fonte url, renderer e o template de pop-up
+
+        var permanencia30 = new FeatureLayer({
+            url: "https://services9.arcgis.com/S990USlhfgpUmWKm/arcgis/rest/services/rios/FeatureServer",
+            renderer: permanencia30Renderer,
+            outFields: ["AreaM_km2","Tr","Semana_1","Semana_2","Semana_3","Semana_4","Semana_5","Semana_6","Semana_7","Semana_8","Mini","Permanencia","Tr_Intervalo"],
+            popupTemplate: popupRivers,
+            title: "Permanência  Máx/Mín- Últimos 30 dias"
+        });
+
+        // Escala mínima de visibilidade do layer 1:18489298 | Zoom 5
+
+        permanencia30.minScale = 36978596;
+
+// ***********************************************************************************************************************************************
+
+
+        // Criar uma nova FeatureLayer e configurar a fonte url, renderer e o template de pop-up
+
+        var tempo30 = new FeatureLayer({
+            url: "https://services9.arcgis.com/S990USlhfgpUmWKm/arcgis/rest/services/rios/FeatureServer",
+            renderer: tempo30Renderer,
+            outFields: ["AreaM_km2","Tr","Semana_1","Semana_2","Semana_3","Semana_4","Semana_5","Semana_6","Semana_7","Semana_8","Mini","Permanencia","Tr_Intervalo"],
+            popupTemplate: popupRivers,
+            title: "Tempo de retorno Máx/Mín- Últimos 30 dias"
+        });
+
+        // Escala mínima de visibilidade do layer 1:18489298 | Zoom 5
+
+        tempo30.minScale = 36978596;
+
+// ***********************************************************************************************************************************************
+
+        var grupo = new GroupLayer({
+            title: "Lista de camadas",
+            visible: true,
+            visibilityMode: "exclusive",
+            layers: [tempo30, tempo, permanencia30, permanencia, rivers],
+            opacity: 1
+        });
+
+        map.add(grupo)
+
+// ***********************************************************************************************************************************************
+
+        // Referências (label) do mapa de fundo
+
+        references = new VectorTileLayer({
+                portalItem: {
+                id: "237dd5bec0c14361af5fcad6c1787135"
+                }
+            })
+
+        map.add(references);
+        references.listMode = "hide";
+
+// ***********************************************************************************************************************************************
+
+        // Define uma lista de expressões SQL e usa essa lista para gerar um <select> em HTML com uma opção de filtro para cada expressão.
+
+        var sqlExpressions = ["AreaM_km2 > 1000", "AreaM_km2 > 2500", "AreaM_km2 > 5000", "AreaM_km2 > 7500", "AreaM_km2 > 10000", "AreaM_km2 > 15000"];
+
+        var selectFilter = document.createElement("select");
+        selectFilter.setAttribute("class", "esri-widget esri-select");
+        selectFilter.setAttribute("style", "width: 180px; font-family: Avenir Next W00; font-size: 1em;");
+
+        sqlExpressions.forEach(function (sql) {
+            var option = document.createElement("option");
+            option.value = sql;
+            option.innerHTML = sql;
+            selectFilter.appendChild(option);
+        });
+
+        var selectFilterExpand = new Expand({
+            view: view,
+            content: selectFilter,
+            expandIconClass: "esri-icon-filter",
+            expandTooltip: "Aplicar filtro (área de drenagem)",
+        });
+
+        // Adiciona o elemento de filtro com expansão no canto esquerdo superior do mapa
+
+        view.ui.add(selectFilterExpand, "top-left");
+
+
+        // Criar uma função que carrega a FeatureLayerView e aplica o filtro com as expressões em SQL quando o layer estiver pronto
+
+        function setFeatureLayerViewFilter(expression) {
+            view.whenLayerView(rivers).then(function (featureLayerView) {
+                featureLayerView.filter = {
+                    where: expression
+                }
+            });
+            view.whenLayerView(permanencia).then(function (featureLayerView) {
+                featureLayerView.filter = {
+                    where: expression
+                }
+            });
+            view.whenLayerView(tempo).then(function (featureLayerView) {
+                featureLayerView.filter = {
+                where: expression
+                }
+            });
+            view.whenLayerView(permanencia30).then(function (featureLayerView) {
+                featureLayerView.filter = {
+                where: expression
+                }
+            });
+            view.whenLayerView(tempo30).then(function (featureLayerView) {
+                featureLayerView.filter = {
+                where: expression
+                }
+            });
+        }
+
+        // Chama a função setFeatureLayerViewFilter e passa nos parâmetros as expressões em SQL.
+
+        selectFilter.addEventListener('change', function (event) {
+            setFeatureLayerViewFilter(event.target.value);
+        });
+
+// ***********************************************************************************************************************************************
+
+        // Adicionar hightlight em cada feature quando o cursor do mouse se mover sobre elas...
+
+        var highlightRivers;
+
+        view.whenLayerView(rivers).then(function (featureLayerView) {
+            view.on("pointer-move", function (event) {
+                view.hitTest(event).then(function (response) {
+                    var feature = response.results.filter(function (result) {
+                        return result.graphic.layer === rivers;
+                    })[0].graphic;
+                    if (highlightRivers) {
+                        highlightRivers.remove();
+                    }
+                    highlightRivers = featureLayerView.highlight(feature);
+                });
+            });
+        });
+
+        var highlightPermanencia;
+
+        view.whenLayerView(permanencia).then(function (featureLayerView) {
+            view.on("pointer-move", function (event) {
+                view.hitTest(event).then(function (response) {
+                    var feature = response.results.filter(function (result) {
+                        return result.graphic.layer === permanencia;
+                    })[0].graphic;
+                    if (highlightPermanencia) {
+                        highlightPermanencia.remove();
+                    }
+                    highlightPermanencia = featureLayerView.highlight(feature);
+                });
+            });
+        });
+
+        var highlightTempo;
+
+        view.whenLayerView(tempo).then(function (featureLayerView) {
+            view.on("pointer-move", function (event) {
+                view.hitTest(event).then(function (response) {
+                    var feature = response.results.filter(function (result) {
+                        return result.graphic.layer === tempo;
+                    })[0].graphic;
+                    if (highlightTempo) {
+                        highlightTempo.remove();
+                    }
+                    highlightTempo = featureLayerView.highlight(feature);
+                });
+            });
+        });
+
+        var highlightPermanencia30;
+
+        view.whenLayerView(permanencia30).then(function (featureLayerView) {
+            view.on("pointer-move", function (event) {
+                view.hitTest(event).then(function (response) {
+                    var feature = response.results.filter(function (result) {
+                        return result.graphic.layer === permanencia30;
+                    })[0].graphic;
+                    if (highlightPermanencia30) {
+                        highlightPermanencia30.remove();
+                    }
+                    highlightPermanencia30 = featureLayerView.highlight(feature);
+                });
+            });
+        });
+
+        var highlightTempo30;
+
+        view.whenLayerView(tempo30).then(function (featureLayerView) {
+            view.on("pointer-move", function (event) {
+                view.hitTest(event).then(function (response) {
+                    var feature = response.results.filter(function (result) {
+                        return result.graphic.layer === tempo30;
+                    })[0].graphic;
+                    if (highlightTempo30) {
+                        highlightTempo30.remove();
+                    }
+                    highlightTempo30 = featureLayerView.highlight(feature);
+                });
+            });
+        });
+
+
+// ***********************************************************************************************************************************************
+
+        // Adicona uma ferramenta de escala no canto esquerdo inferior do mapa
+
+        var scalebar = new ScaleBar({
+            view: view,
+            unit: "metric",
+            style: "ruler"
+        });
+
+        view.ui.add(scalebar, "bottom-left");
+
+// ***********************************************************************************************************************************************
+
+        // Ferramenta para obter as coordenadas do mapa
+
+        var coordsWidget = document.createElement("div");
+        coordsWidget.id = "coordsWidget";
+        coordsWidget.className = "esri-widget esri-component";
+        coordsWidget.style.padding = "7px 15px 5px";
+
+        view.ui.add(coordsWidget, "bottom-right");
+
+        // Exibir a informação das coordenadas.
+
+        function showCoordinates(pt) {
+            var coords = "Lat / Lon " + pt.latitude.toFixed(3) + " " + pt.longitude.toFixed(3);
+            coordsWidget.innerHTML = coords;
+        }
+
+        view.watch("stationary", function (isStationary) {
+            showCoordinates(view.center);
+        });
+
+        view.on("pointer-move", function (evt) {
+            showCoordinates(view.toMap({ x: evt.x, y: evt.y }));
+        });
+
+// ***********************************************************************************************************************************************
+
+        // Ferramenta de busca por endereços, localizações, nomes de rios etc...
+
+        var search = new Search({
+            view: view
+        });
+
+        view.ui.add(search, {
+            position: "top-right"
+        });
+
+
+// ***********************************************************************************************************************************************
+
+        // Adiciona o número da minibacia como uma fonte de procura na ferramenta search
+
+        search.sources.push({
+            layer: rivers,
+            searchFields: ["Mini"],
+            displayField: "Mini",
+            exactMatch: false,
+            outFields: ["Mini"],
+            resultGraphicEnabled: true,
+            name: "Código da minibacia",
+            placeholder: "Minibacia (Ex: 30620)"
+        });
+
+// ***********************************************************************************************************************************************
+
+        var activeWidget = null;
+        // add the toolbar for the measurement widgets
+        view.ui.add("topbar", "top-right");
+
+        document
+            .getElementById("distanceButton")
+            .addEventListener("click", function() {
+                setActiveWidget(null);
+                if (!this.classList.contains("active")) {
+                    setActiveWidget("distance");
+                } else {
+                    setActiveButton(null);
+                }
+            });
+
+        document
+            .getElementById("areaButton")
+            .addEventListener("click", function() {
+                setActiveWidget(null);
+                if (!this.classList.contains("active")) {
+                    setActiveWidget("area");
+                } else {
+                    setActiveButton(null);
+                }
+            });
+
+        document
+            .getElementById("clearButton")
+            .addEventListener("click", function() {
+                setActiveWidget(null);
+                if (!this.classList.contains("active")) {
+                    setActiveWidget("clear");
+                } else {
+                    setActiveButton(null);
+                 }
+            });
+
+        function setActiveWidget(type) {
+            switch (type) {
+                case "distance":
+                activeWidget = new DistanceMeasurement2D({
+                    view: view
+                });
+
+                // skip the initial 'new measurement' button
+                activeWidget.viewModel.newMeasurement();
+
+                view.ui.add(activeWidget, "top-right");
+                setActiveButton(document.getElementById("distanceButton"));
+                break;
+
+                case "area":
+                activeWidget = new AreaMeasurement2D({
+                    view: view
+                });
+
+                // skip the initial 'new measurement' button
+                activeWidget.viewModel.newMeasurement();
+
+                view.ui.add(activeWidget, "top-right");
+                setActiveButton(document.getElementById("areaButton"));
+                break;
+
+                case "clear":
+                setActiveButton(document.getElementById("clearButton"));
+                if (activeWidget) {
+                    view.ui.remove(activeWidget);
+                    activeWidget.destroy();
+                    activeWidget = null;
+                }
+
+                case null:
+                if (activeWidget) {
+                    view.ui.remove(activeWidget);
+                    activeWidget.destroy();
+                    activeWidget = null;
+                }
+                break;
+            }
+        }
+
+        function setActiveButton(selectedButton) {
+            // focus the view to activate keyboard shortcuts for sketching
+            view.focus();
+            var elements = document.getElementsByClassName("active");
+            for (var i = 0; i < elements.length; i++) {
+                elements[i].classList.remove("active");
+            }
+            if (selectedButton) {
+                selectedButton.classList.add("active");
+            }
+        }
+    });
+
+</script>
+
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <img src="/static/images/logosardim.png"/>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarText" aria-controls="navbarText" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarText">
+        <ul class="navbar-nav mr-auto">
+            <li class="nav-item">
+                <a class="nav-link" href="https://sardim.herokuapp.com/">Início<span class="sr-only">(current)</span></a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" target="_blank" href="https://www.hydrol-earth-syst-sci.net/22/4815/2018/hess-22-4815-2018.html">Documentação</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" target="_blank" href="https://www.ufrgs.br/samewater/">SameWater</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" target="_blank" href="https://www.ufrgs.br/hge/">HGE</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-toggle="modal" data-target="#info">Suporte</a>
+            </li>
+        </ul>
+        <span class="navbar-text">
+            <h1></h1>
+            <h6><span class="badge badge-secondary">Atualizado: 03/06/2020</span></h6>
+        </span>
+        </div>
+    </nav>
+
+    <div id="viewDiv"></div>
+
+    <div id="topbar">
+        <button
+        class="action-button esri-icon-measure-line"
+        id="distanceButton"
+        type="button"
+        title="Medir distância entre dois pontos"
+        ></button>
+        <button
+        class="action-button esri-icon-measure-area"
+        id="areaButton"
+        type="button"
+        title="Medir área de um polígono"
+        ></button>
+        <button
+        class="action-button esri-icon-trash"
+        id="clearButton"
+        type="button"
+        title="Limpar seleção"
+        ></button>
+
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            $('#myModal').modal('show');
+        });
+    </script>
+
+    <!-- Modal -->
+    <div class="modal fade" id="myModal" data-backdrop="static" data-keyboard="false" tabindex="-1" role="dialog" aria-labelledby="staticBackdropLabel" aria-hidden="true">
+        <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+            <h5 class="modal-title" id="staticBackdropLabel">Aviso:</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            </div>
+            <div class="modal-body">
+            <p style="text-align: justify;">A plataforma de monitoramento de vazão de rios da América do Sul - <i>South America River Discharge Monitor</i> (SARDIM) é um protótipo em desenvolvimento.</p>
+            <p style="text-align: justify;">Essa ferramenta foi criada pelo grupo de pesquisa Hidrologia de Grande Escala (HGE), que faz parte do Instituto de Pesquisas Hidráulicas (IPH) da Universidade Federal do Rio Grande do Sul (UFRGS).</p>
+            <p style="text-align: justify;">Os dados disponíveis não são referentes a medições locais de vazão ou valores observados in loco. Todos os resultados foram obtidos por meio do uso de tecnologias de modelagem hidrológica em grande escala. Para mais informações, consulte o link de documentação referente ao estudo do modelo hidrológico de referência.</p>
+            <p style="text-align: justify;">Ao clicar em <b>aceitar</b>, o usuário se responsabiliza integral e exclusivamente pelo uso das informações disponibilizadas.</p>
+            </div>
+            <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Aceitar</button>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Modal Informações-->
+
+    <div class="modal" id="info" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-scrollable modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Suporte:</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <h6>Informações gerais:</h6>
+                    <p style="text-align: justify;">A plataforma SARDIM é destinada à visualização de dados de permanência e tempo de retorno das vazões dos rios da América do Sul. Os valores são apresentados por meio de tabelas para cada trecho de rio, ou ainda podem ser visualizados diretamente por escalas de cor no mapa, considerando as vazões do último dia de atualização da plataforma e a análise de eventos extremos do mês. Os resultados são baseados em simulações do modelo hidrológico MGB.</p>
+                    <p style="text-align: justify;">O valor de permanência da vazão para um trecho de rio é obtido através da análise de sua curva de duração. Essa curva informa graficamente com que frequência a vazão de uma determinada magnitude é igualada ou excedida durante o período de registro das vazões. No caso da plataforma SARDIM, o período analisado corresponde aos anos de 1980 até 2020.</p>
+                    <p style="text-align: justify;">O tempo de retorno é o intervalo de tempo em anos estimado no qual se espera a ocorrência de um determinado evento. Considerando por exemplo uma vazão de um trecho de rio com tempo de retorno igual a 5 anos, espera-se que o valor dessa vazão seja igualado ou superado naquele trecho, em média, uma vez a cada 5 anos. A plataforma SARDIM adota valores positivos de tempo de retorno (gradiente azul) para eventos de cheias e valores negativos (gradiente vermelho) para eventos de secas ou estiagens.</p>
+                    <h6>Como utilizar a ferramenta?</h6>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/plus.png"/>&nbsp;&nbsp; Ampliar zoom no mapa.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/minus.png"/>&nbsp;&nbsp; Reduzir zoom no mapa.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/fullscreen.png"/>&nbsp;&nbsp; Entrar no modo de tela cheia.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/home.png"/>&nbsp;&nbsp; Voltar à configuração de mapa inicial.
+                    </p>
+                    <p style="text-align: justify;">
+                    <img src="/static/images/layerlist.png"/> Lista de camadas disponíveis.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/setadireita.png"/> Dentro da opção de lista de camadas, ao clicar no botão de expansão, selecione uma das quatro opções de resultados para visualizar a variação de cor nos rios conforme o parâmetro escolhido: permanência atual, tempo de retorno atual, permanência máxima ou mínima do mês ou tempo de retorno máximo ou mínimo do mês.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/olho.png"/>&nbsp; Ativar/desativar todas as camadas do mapa. Por padrão, a lista de camadas já está automaticamente configurada para renderizar a camada de rios padrão, onde as cores dos trechos variam apenas de acordo com a área de drenagem acumulada a montante do rio.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/legenda.png"/>&nbsp; Clique no botão à direita da lista de camadas para visualizar a legenda do mapa.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/collection.png"/>&nbsp;&nbsp; Mudar mapa de fundo para imagem de satélite.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/filter.png"/>&nbsp;&nbsp; Filtrar rede de rios por área de drenagem.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/lupa.png"/>&nbsp; Ferramenta de pesquisa: é possível pesquisar um endereço/nome de rio usando o ArcGIS Geocoding Service ou localizar um trecho de rio (minibacia) pelo seu respectivo código de identificação. Cada trecho de rio possui um código de identidade único, sendo um valor númerico inteiro que pode variar de 1 a 33749.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/distancia.png"/>&nbsp; Medir a distância entre dois pontos no mapa (considera a curvatura terrestre para grandes distâncias). Unidades de medida no sistema métrico ou imperial.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/area.png"/>&nbsp; Medir a área de um polígono no mapa (considera a curvatura terrestre para grandes distâncias). Unidade de medida no sistema métrico ou imperial.
+                    </p>
+                    <p style="text-align: justify;">
+                        <img src="/static/images/lixo.png"/>&nbsp; Limpar seleção da ferramenta de medição.
+                    </p>
+                    <h6>Visualizando os resultados:</h6>
+                    <p style="text-align: justify;"> Para visualizar os resultados, basta clicar com o mouse sobre um trecho de rio. O trecho selecionado ficará automaticamente em destaque ao passar o cursor por cima.
+                    </p>
+                    <p style="text-align: justify;">Clicando em um trecho de rio, uma tabela com os principais resultados aparecerá na tela em uma janela de pop-up. É possível dar um zoom localizado para o trecho escolhido.</p>
+                    <p style="text-align: justify;">Deslizando o mouse logo abaixo da tabela informativa na janela de pop-up, é apresentado também um gráfico de vazões médias semanais para os últimos 2 meses no trecho de rio selecionado. Para visualizar o valor exato da vazão em uma semana, basta passar o mouse sobre a coluna do gráfico desejada.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
